@@ -1,4 +1,2 @@
 // Counts the documents in a list
-
-db = connect("mongodb://127.0.0.1:27017/" + db.getSiblingDB(arguments[0]).getName());
-print(db.school.countDocuments());
+db.school.count());
