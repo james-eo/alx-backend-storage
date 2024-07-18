@@ -3,34 +3,50 @@
 
 import redis
 import requests
-from functools import wraps
+import time
 from typing import Callable
 
 redis_client = redis.Redis()
 
 
-def cache_and_track(expiration_time: int = 10) -> Callable:
-    """Decorator to cache the page and track access count"""
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(url: str) -> str:
-            redis_client.incr(f"count:{url}")
-
-            cached_page = redis_client.get(f"cache:{url}")
-            if cached_page:
-                return cached_page.decode('utf-8')
-
-            page_content = func(url)
-
-            redis_client.setex(f"cache:{url}", expiration_time, page_content)
-
-            return page_content
-        return wrapper
-    return decorator
-
-
-@cache_and_track()
 def get_page(url: str) -> str:
-    """Fetch a web page and return its content"""
+    """
+    Fetch a web page, cache it, and track access count.
+
+    Args:
+        url (str): The URL of the web page to fetch.
+
+    Returns:
+        str: The content of the web page.
+    """
+    count_key = f"count:{url}"
+    redis_client.incr(count_key)
+
+    cache_key = f"cache:{url}"
+    cached_page = redis_client.get(cache_key)
+
+    if cached_page:
+        return cached_page.decode('utf-8')
+
     response = requests.get(url)
-    return response.text
+    page_content = response.text
+
+    redis_client.setex(cache_key, 10, page_content)
+
+    return page_content
+
+
+if __name__ == "__main__":
+    url = "http://google.com"
+    print(get_page(url))
+    print(f"{redis_client.get(f'count:{url}').decode('utf-8')} times")
+
+    print("Sleeping for 5 seconds...")
+    time.sleep(5)
+    print("Accessing again (should be cached):")
+    print(get_page(url))
+
+    print("Sleeping for 6 more seconds...")
+    time.sleep(6)
+    print("Accessing again (should not be cached):")
+    print(get_page(url))
